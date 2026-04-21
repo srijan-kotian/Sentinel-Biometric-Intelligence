@@ -1,12 +1,9 @@
-# Core Logic
 face-recognition
-imutils
-scipy
 opencv-python-headless
-
-# UI & Visualization
 streamlit
 streamlit-option-menu
+imutils
+scipy
 pandas
 numpy
 plotly
