@@ -1,0 +1,13 @@
+# Core Logic
+face-recognition
+imutils
+scipy
+opencv-python-headless
+
+# UI & Visualization
+streamlit
+streamlit-option-menu
+pandas
+numpy
+plotly
+Pillow
