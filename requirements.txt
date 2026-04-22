@@ -1,6 +1,10 @@
-face-recognition
 opencv-python-headless
+face-recognition
 streamlit
 streamlit-option-menu
 imutils
 scipy
+pandas
+numpy
+plotly
+Pillow
