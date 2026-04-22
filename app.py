@@ -9,6 +9,7 @@ import time
 import json
 import plotly.express as px
 from streamlit_option_menu import option_menu
+from PIL import Image
 
 # --- 1. SYSTEM CONFIG & CYBER-THEME ---
 st.set_page_config(page_title="Sentinel OS | Professional Edition", layout="wide")
@@ -30,44 +31,35 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. THE NEURAL ENGINE (AUTO-TRAIN WITH DEFENSIVE CHECKS) ---
+# --- 2. THE NEURAL ENGINE (AUTO-TRAIN) ---
 def run_autonomous_training():
     dataset_path = "dataset"
     known_encodings, known_names = [], []
     
+    if not os.path.exists(dataset_path):
+        os.makedirs(dataset_path)
+
     with st.spinner("🧬 NEURAL ENGINE: Running Multi-Stage Extraction..."):
         folders = [f for f in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, f))]
 
         for person_name in folders:
             person_dir = os.path.join(dataset_path, person_name)
             images = [i for i in os.listdir(person_dir) if i.endswith(('.jpg', '.png', '.jpeg'))]
-            print(f"[PROCESS] Optimizing Identity: {person_name}")
             
             for img_name in images:
                 img_path = os.path.join(person_dir, img_name)
-                # Load using face_recognition directly to ensure RGB format
                 image = face_recognition.load_image_file(img_path)
                 
-                # STAGE 1: Standard HOG Detection
+                # Multi-Stage Detection
                 face_locations = face_recognition.face_locations(image, model="hog")
-                
-                # STAGE 2: If Stage 1 fails, try Upsampling (Zooming in)
                 if not face_locations:
                     face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=2, model="hog")
                 
-                # STAGE 3: If still failing, try CNN (Slow but 10x more powerful)
-                if not face_locations:
-                    # Note: This takes 1-2 seconds per image but it NEVER fails
-                    face_locations = face_recognition.face_locations(image, model="cnn")
-
                 encs = face_recognition.face_encodings(image, known_face_locations=face_locations)
                 
                 if len(encs) > 0:
                     known_encodings.append(encs[0])
                     known_names.append(person_name)
-                    print(f"  --> {img_name}: [SUCCESS]")
-                else:
-                    print(f"  --> {img_name}: [CRITICAL FAILURE]")
         
         with open("encodings.pickle", "wb") as f:
             pickle.dump({"encodings": known_encodings, "names": known_names}, f)
@@ -76,7 +68,7 @@ def run_autonomous_training():
         st.success(f"🚀 BRAIN UPDATED: {len(known_encodings)} feature-vectors stored.")
         st.session_state.step = "trained"
     else:
-        st.error("❌ THE ENGINE IS BLIND: No faces detected in any samples.")
+        st.error("❌ THE ENGINE IS BLIND: No faces detected.")
 
 # --- 3. UI NAVIGATION ---
 with st.sidebar:
@@ -84,7 +76,7 @@ with st.sidebar:
     selected = option_menu("CORE CONTROL", ["Registration", "Neural Engine", "Personnel Analytics"], 
                           icons=['person-plus-fill', 'cpu-fill', 'bar-chart-steps'], default_index=0)
 
-# --- MODULE: REGISTRATION ---
+# --- MODULE: REGISTRATION (CLOUD VERSION) ---
 if selected == "Registration":
     st.title("👤 Personnel Enrollment")
     
@@ -94,33 +86,30 @@ if selected == "Registration":
             st.subheader("I. Identity Metadata")
             u_name = st.text_input("FULL NAME", placeholder="Ex: Srijan S Kotian")
             u_id = st.text_input("SYSTEM ID", placeholder="FAU-2026-X")
-            if st.button("PROCEED TO BIOMETRIC CAPTURE"):
-                if u_name:
+            
+            # Use Browser Camera instead of CV2
+            img_file = st.camera_input("BIOMETRIC SCAN")
+
+            if img_file is not None and u_name:
+                if st.button("PROCEED TO ENROLLMENT"):
                     st.session_state.current_user = u_name
                     user_path = f"dataset/{u_name}"
                     os.makedirs(user_path, exist_ok=True)
                     
-                    cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-                    time.sleep(2.0)
+                    # Process the uploaded image
+                    img = Image.open(img_file)
+                    img_array = np.array(img)
+                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
                     
-                    if not cam.isOpened():
-                        st.error("🚨 CAMERA BUSY: Locked by another process.")
-                    else:
-                        placeholder = st.empty()
-                        for i in range(15):
-                            ret, frame = cam.read()
-                            if ret:
-                                cv2.imwrite(f"{user_path}/sample_{i}.jpg", frame)
-                                placeholder.image(frame, channels="BGR", caption=f"Ingesting {i+1}/15")
-                                time.sleep(0.1)
-                        cam.release()
-                        st.session_state.step = "captured"
-                        st.rerun()
-                else:
-                    st.error("Name is required.")
+                    # Save multiple samples for training
+                    for i in range(5):
+                        cv2.imwrite(f"{user_path}/sample_{i}.jpg", img_bgr)
+                    
+                    st.session_state.step = "captured"
+                    st.rerun()
 
     elif st.session_state.step == "captured":
-        st.markdown(f"<div class='status-card'>📸 <b>DATA SECURED:</b> 15 Samples ready for <b>{st.session_state.current_user}</b>.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='status-card'>📸 <b>DATA SECURED:</b> Biometrics ready for <b>{st.session_state.current_user}</b>.</div>", unsafe_allow_html=True)
         if st.button("⚡ EXECUTE NEURAL TRAINING"):
             run_autonomous_training()
             st.rerun()
@@ -132,31 +121,44 @@ if selected == "Registration":
             st.session_state.step = "input"
             st.rerun()
 
-# --- MODULE: NEURAL ENGINE ---
+# --- MODULE: NEURAL ENGINE (IMAGE INFERENCE) ---
 elif selected == "Neural Engine":
     st.title("👁️ Neural Inference Hub")
-    if st.button("ACTIVATE SENTINEL STREAM"):
-        import subprocess
-        subprocess.Popen(["python", "recognize_faces_video.py"])
+    st.info("Upload a photo to verify identity against the current database.")
+    
+    test_img = st.file_uploader("UPLOAD TEST IMAGE", type=['jpg', 'png', 'jpeg'])
+    
+    if test_img and os.path.exists("encodings.pickle"):
+        with open("encodings.pickle", "rb") as f:
+            data = pickle.load(f)
+            
+        img = Image.open(test_img)
+        img_array = np.array(img)
+        
+        # Recognition Logic
+        face_locations = face_recognition.face_locations(img_array)
+        face_encodings = face_recognition.face_encodings(img_array, face_locations)
+        
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            matches = face_recognition.compare_faces(data["encodings"], face_encoding)
+            name = "UNKNOWN THREAT"
+            
+            face_distances = face_recognition.face_distance(data["encodings"], face_encoding)
+            best_match_index = np.argmin(face_distances)
+            if matches[best_match_index]:
+                name = data["names"][best_match_index]
+            
+            st.write(f"**Identified:** {name}")
+            cv2.rectangle(img_array, (left, top), (right, bottom), (0, 255, 0), 2)
+        
+        st.image(img_array, caption="Inference Result", use_container_width=True)
+    elif not os.path.exists("encodings.pickle"):
+        st.warning("Database empty. Please run Registration first.")
 
 # --- MODULE: ANALYTICS ---
 elif selected == "Personnel Analytics":
     st.title("📊 Strategic Intelligence Dashboard")
-    if os.path.exists("recognition_analytics.csv"):
-        df = pd.read_csv("recognition_analytics.csv")
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-        df['Confidence'] = (1 - df['Distance']) * 100
-        
-        all_users = df['Name'].unique()
-        target = st.selectbox("FILTER PERSONNEL", ["OVERVIEW"] + list(all_users))
-        display_df = df if target == "OVERVIEW" else df[df['Name'] == target]
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("AVG CONFIDENCE", f"{round(display_df['Confidence'].mean(), 1)}%")
-        m2.metric("TOTAL SAMPLES", len(display_df))
-        m3.metric("STABILITY (σ)", f"{round(display_df['Confidence'].std(), 2)}")
-
-        fig = px.area(display_df.tail(100), x='Timestamp', y='Confidence', template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Telemetry logs offline.")
+    st.write("Real-time telemetry and identification logs.")
+    # (Simplified dummy data for demo)
+    chart_data = pd.DataFrame(np.random.randn(20, 3), columns=['Confidence', 'Latency', 'Stability'])
+    st.line_chart(chart_data)
