@@ -4,7 +4,3 @@ streamlit
 streamlit-option-menu
 imutils
 scipy
-pandas
-numpy
-plotly
-Pillow
