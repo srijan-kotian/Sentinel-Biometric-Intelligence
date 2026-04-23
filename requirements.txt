@@ -1,7 +1,10 @@
-opencv-python-headless
-face-recognition
-streamlit
+﻿opencv-python-headless==4.8.0.76
+face-recognition==1.3.0
+streamlit==1.31.1
 streamlit-option-menu
 imutils
 scipy
+pandas
+numpy
+plotly
 Pillow
