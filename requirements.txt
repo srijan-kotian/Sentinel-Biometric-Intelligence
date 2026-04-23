@@ -1,6 +1,7 @@
+﻿opencv-python-headless
 face-recognition
-opencv-python-headless
 streamlit
 streamlit-option-menu
 imutils
 scipy
+Pillow
