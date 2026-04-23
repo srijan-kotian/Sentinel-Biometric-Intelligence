@@ -1,4 +1,4 @@
-﻿opencv-python-headless
+opencv-python-headless
 face-recognition
 streamlit
 streamlit-option-menu
