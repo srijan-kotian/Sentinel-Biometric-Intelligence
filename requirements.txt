@@ -1,4 +1,5 @@
 streamlit
+https://github.com/alkaitagi/dlib-wheels/raw/main/dlib-19.24.1-cp311-cp311-linux_x86_64.whl
 face-recognition
 opencv-python-headless
 streamlit-option-menu
